@@ -5,6 +5,7 @@ import { Toaster } from './components/ui/sonner';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import Repositories from './pages/Repositories';
 import RepositoryDetail from './pages/RepositoryDetail';
@@ -32,14 +33,15 @@ function App() {
           <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+          <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
 
-          <Route path="/dashboard" element={<PublicRoute><Dashboard /></PublicRoute>} />
-          <Route path="/repositories" element={<PublicRoute><Repositories /></PublicRoute>} />
-          <Route path="/repositories/:id" element={<PublicRoute><RepositoryDetail /></PublicRoute>} />
-          <Route path="/vulnerabilities" element={<PublicRoute><VulnerabilityFeed /></PublicRoute>} />
-          <Route path="/ai-knowledge" element={<PublicRoute><AIKnowledgeBase /></PublicRoute>} />
-          <Route path="/activity" element={<PublicRoute><ActivityLog /></PublicRoute>} />
-          <Route path="/settings" element={<PublicRoute><Settings /></PublicRoute>} />
+          <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+          <Route path="/repositories" element={<PrivateRoute><Repositories /></PrivateRoute>} />
+          <Route path="/repositories/:id" element={<PrivateRoute><RepositoryDetail /></PrivateRoute>} />
+          <Route path="/vulnerabilities" element={<PrivateRoute><VulnerabilityFeed /></PrivateRoute>} />
+          <Route path="/ai-knowledge" element={<PrivateRoute><AIKnowledgeBase /></PrivateRoute>} />
+          <Route path="/activity" element={<PrivateRoute><ActivityLog /></PrivateRoute>} />
+          <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" richColors />

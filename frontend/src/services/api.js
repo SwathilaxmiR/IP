@@ -2,6 +2,14 @@ import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+// Create axios instance for direct API calls
+const apiClient = axios.create({
+  baseURL: API,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 const getHeaders = () => {
   const token = localStorage.getItem('token');
   return {
@@ -111,3 +119,4 @@ export const api = {
     return response.data;
   }
 };
+export default apiClient;
