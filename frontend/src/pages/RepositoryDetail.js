@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, GitBranch, FileCode, AlertTriangle, 
-  Folder, ChevronRight, ChevronDown, RefreshCw,
-  Loader2, CheckCircle, Clock, Shield, GitCommit, Scan
+  Folder, ChevronRight, ChevronDown,
+  Loader2, CheckCircle, Clock, Shield, GitCommit, Scan, Bug
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -32,11 +32,23 @@ import { api } from '../services/api';
 import { toast } from 'sonner';
 import { useWebSocket } from '../hooks/useWebSocket';
 
-// File Tree Component
-const FileTreeItem = ({ item, level = 0 }) => {
+// File Tree Component with vulnerability indicators
+const FileTreeItem = ({ item, level = 0, vulnerabilitiesByFile = {}, onFileClick }) => {
   const [expanded, setExpanded] = useState(level < 2);
   const isFolder = item.type === 'folder';
   const hasChildren = item.children && item.children.length > 0;
+  
+  // Get vulnerability count for this item (file or folder)
+  const getVulnerabilityCount = (node) => {
+    if (node.type === 'folder') {
+      // Sum up vulnerabilities in all children
+      return (node.children || []).reduce((sum, child) => sum + getVulnerabilityCount(child), 0);
+    }
+    return (vulnerabilitiesByFile[node.path] || []).length;
+  };
+  
+  const vulnCount = getVulnerabilityCount(item);
+  const fileVulns = !isFolder ? (vulnerabilitiesByFile[item.path] || []) : [];
   
   const getFileIcon = (path) => {
     const ext = path.split('.').pop().toLowerCase();
@@ -53,12 +65,22 @@ const FileTreeItem = ({ item, level = 0 }) => {
     return iconMap[ext] || '📄';
   };
 
+  const handleClick = () => {
+    if (isFolder) {
+      setExpanded(!expanded);
+    } else if (fileVulns.length > 0 && onFileClick) {
+      onFileClick(item.path, fileVulns);
+    }
+  };
+
   return (
     <div>
       <div
-        className={`flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer transition-colors`}
+        className={`flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer transition-colors ${
+          vulnCount > 0 ? 'bg-red-500/5' : ''
+        }`}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
-        onClick={() => isFolder && setExpanded(!expanded)}
+        onClick={handleClick}
       >
         {isFolder ? (
           <>
@@ -71,7 +93,7 @@ const FileTreeItem = ({ item, level = 0 }) => {
             ) : (
               <span className="w-4" />
             )}
-            <Folder className="w-4 h-4 text-yellow-500" />
+            <Folder className={`w-4 h-4 ${vulnCount > 0 ? 'text-red-500' : 'text-yellow-500'}`} />
           </>
         ) : (
           <>
@@ -79,8 +101,14 @@ const FileTreeItem = ({ item, level = 0 }) => {
             <span className="text-sm">{getFileIcon(item.path)}</span>
           </>
         )}
-        <span className="text-sm truncate">{item.name}</span>
-        {!isFolder && item.size && (
+        <span className={`text-sm truncate ${vulnCount > 0 ? 'font-medium' : ''}`}>{item.name}</span>
+        {vulnCount > 0 && (
+          <Badge variant="destructive" className="ml-auto text-xs h-5 px-1.5">
+            <Bug className="w-3 h-3 mr-1" />
+            {vulnCount}
+          </Badge>
+        )}
+        {!isFolder && !vulnCount && item.size && (
           <span className="text-xs text-muted-foreground ml-auto">
             {item.size > 1024 ? `${(item.size / 1024).toFixed(1)}KB` : `${item.size}B`}
           </span>
@@ -96,7 +124,13 @@ const FileTreeItem = ({ item, level = 0 }) => {
             transition={{ duration: 0.15 }}
           >
             {item.children.map((child, idx) => (
-              <FileTreeItem key={child.path || idx} item={child} level={level + 1} />
+              <FileTreeItem 
+                key={child.path || idx} 
+                item={child} 
+                level={level + 1} 
+                vulnerabilitiesByFile={vulnerabilitiesByFile}
+                onFileClick={onFileClick}
+              />
             ))}
           </motion.div>
         )}
@@ -173,6 +207,29 @@ const RepositoryDetail = () => {
   
   // Current scan ID for WebSocket matching
   const [currentScanId, setCurrentScanId] = useState(null);
+  
+  // State for file-based vulnerability viewer
+  const [selectedFileVulns, setSelectedFileVulns] = useState(null);
+  const [selectedFilePath, setSelectedFilePath] = useState('');
+  
+  // Group vulnerabilities by file path
+  const vulnerabilitiesByFile = useMemo(() => {
+    const grouped = {};
+    vulnerabilities.forEach(vuln => {
+      const filePath = vuln.file_path || 'unknown';
+      if (!grouped[filePath]) {
+        grouped[filePath] = [];
+      }
+      grouped[filePath].push(vuln);
+    });
+    return grouped;
+  }, [vulnerabilities]);
+  
+  // Handle file click in tree to show vulnerabilities
+  const handleFileVulnClick = useCallback((filePath, vulns) => {
+    setSelectedFilePath(filePath);
+    setSelectedFileVulns(vulns);
+  }, []);
   
   // Define fetchData first so it can be referenced by handleWebSocketMessage
   const fetchData = useCallback(async () => {
@@ -261,16 +318,6 @@ const RepositoryDetail = () => {
     }
   }, [selectedBranch, fetchFileTree, fetchCommits]);
 
-  const handleRefreshSecrets = async () => {
-    try {
-      toast.info('Refreshing GitHub secrets...');
-      const result = await api.refreshRepoSecrets(id);
-      toast.success(result.message || 'Secrets refreshed successfully!');
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to refresh secrets');
-    }
-  };
-
   const handleStartScan = async () => {
     // Check if this is first scan or rescan
     const hasScannedBefore = scans.length > 0;
@@ -330,7 +377,7 @@ const RepositoryDetail = () => {
   const getScanStatusBadge = (status) => {
     const variants = {
       completed: { variant: 'default', icon: CheckCircle, color: 'text-green-500' },
-      running: { variant: 'secondary', icon: RefreshCw, color: 'text-blue-500' },
+      running: { variant: 'secondary', icon: Loader2, color: 'text-blue-500' },
       pending: { variant: 'outline', icon: Clock, color: 'text-yellow-500' },
       failed: { variant: 'destructive', icon: AlertTriangle, color: 'text-red-500' }
     };
@@ -370,35 +417,24 @@ const RepositoryDetail = () => {
               <h1 className="text-4xl font-bold mb-2">{repo?.name}</h1>
               <p className="text-muted-foreground text-lg">{repo?.full_name}</p>
             </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={handleRefreshSecrets}
-                variant="outline"
-                disabled={scanning}
-                title="Refresh GitHub secrets (API URL and token)"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh Secrets
-              </Button>
-              <Button
-                onClick={handleStartScan}
-                disabled={scanning}
-                className="bg-primary hover:bg-primary/90"
-                data-testid="start-scan-button"
-              >
-                {scanning ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Scanning...
-                  </>
-                ) : (
-                  <>
-                    <Scan className="w-4 h-4 mr-2" />
-                    Start Scan
-                  </>
-                )}
-              </Button>
-            </div>
+            <Button
+              onClick={handleStartScan}
+              disabled={scanning}
+              className="bg-primary hover:bg-primary/90"
+              data-testid="start-scan-button"
+            >
+              {scanning ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Scanning...
+                </>
+              ) : (
+                <>
+                  <Scan className="w-4 h-4 mr-2" />
+                  Start Scan
+                </>
+              )}
+            </Button>
           </div>
         </div>
 
@@ -530,7 +566,12 @@ const RepositoryDetail = () => {
                   <ScrollArea className="h-[500px]">
                     <div className="pr-4">
                       {fileTree.map((item, idx) => (
-                        <FileTreeItem key={item.path || idx} item={item} />
+                        <FileTreeItem 
+                          key={item.path || idx} 
+                          item={item}
+                          vulnerabilitiesByFile={vulnerabilitiesByFile}
+                          onFileClick={handleFileVulnClick}
+                        />
                       ))}
                     </div>
                   </ScrollArea>
@@ -794,6 +835,67 @@ const RepositoryDetail = () => {
             <Button onClick={() => executeScan(scanMode)}>
               <Scan className="w-4 h-4 mr-2" />
               Start {scanMode === 'full' ? 'Full' : 'Diff'} Scan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* File Vulnerabilities Dialog */}
+      <Dialog open={!!selectedFileVulns} onOpenChange={(open) => !open && setSelectedFileVulns(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileCode className="w-5 h-5" />
+              Vulnerabilities in {selectedFilePath.split('/').pop()}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              {selectedFilePath}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1 -mx-6 px-6">
+            <div className="space-y-4">
+              {selectedFileVulns?.map((vuln, index) => (
+                <Card key={vuln.id || index} className="border-red-500/20">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-base">{vuln.title}</CardTitle>
+                        <CardDescription className="text-xs">
+                          Line {vuln.line_number} • {vuln.type || 'Unknown Type'}
+                        </CardDescription>
+                      </div>
+                      <Badge variant={
+                        vuln.severity === 'critical' ? 'destructive' : 
+                        vuln.severity === 'high' ? 'destructive' :
+                        vuln.severity === 'medium' ? 'warning' : 'secondary'
+                      }>
+                        {vuln.severity}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0 space-y-3">
+                    <p className="text-sm text-muted-foreground">{vuln.description}</p>
+                    {vuln.code_snippet && (
+                      <div className="bg-muted rounded-md p-3 overflow-x-auto">
+                        <pre className="text-xs font-mono whitespace-pre">
+                          {vuln.code_snippet}
+                        </pre>
+                      </div>
+                    )}
+                    {vuln.fix_suggestion && (
+                      <div className="bg-green-500/10 border border-green-500/20 rounded-md p-3">
+                        <p className="text-xs font-semibold text-green-500 mb-1">Suggested Fix:</p>
+                        <p className="text-sm">{vuln.fix_suggestion}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </ScrollArea>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setSelectedFileVulns(null)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
