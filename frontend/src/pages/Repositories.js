@@ -37,6 +37,8 @@ const Repositories = () => {
   const [selectedRepos, setSelectedRepos] = useState([]);
   const [repoSearchTerm, setRepoSearchTerm] = useState('');
   const [savingRepos, setSavingRepos] = useState(false);
+  const [hasInstallation, setHasInstallation] = useState(false);
+  const [installUrl, setInstallUrl] = useState('');
 
   useEffect(() => {
     fetchRepositories();
@@ -65,6 +67,21 @@ const Repositories = () => {
       const status = await api.getGitHubConnectionStatus();
       setGithubConnected(status.connected);
       setGithubUsername(status.github_username || '');
+      setHasInstallation(status.has_installation || false);
+      setInstallUrl(status.install_url || '');
+      
+      // If connected but no installation, try to sync it (user may have just installed)
+      if (status.connected && !status.has_installation) {
+        try {
+          const syncResult = await api.syncGitHubInstallation();
+          if (syncResult.success && syncResult.installation_id) {
+            setHasInstallation(true);
+            setInstallUrl('');
+          }
+        } catch (e) {
+          // Installation not found, that's okay - user needs to install
+        }
+      }
     } catch (error) {
       console.error('Failed to check GitHub connection:', error);
     }
@@ -87,9 +104,26 @@ const Repositories = () => {
       await api.disconnectGitHub();
       setGithubConnected(false);
       setGithubUsername('');
+      setHasInstallation(false);
+      setInstallUrl('');
       toast.success('GitHub disconnected');
     } catch (error) {
       toast.error('Failed to disconnect GitHub');
+    }
+  };
+
+  const handleSyncInstallation = async () => {
+    try {
+      const result = await api.syncGitHubInstallation();
+      if (result.success && result.installation_id) {
+        setHasInstallation(true);
+        setInstallUrl('');
+        toast.success('App installation synced!');
+      } else if (result.install_url) {
+        toast.info('App not installed yet. Click "Install App" to add it.');
+      }
+    } catch (error) {
+      toast.error('Failed to sync installation');
     }
   };
 
@@ -212,6 +246,34 @@ const Repositories = () => {
                   <Github className="w-4 h-4 mr-2" />
                   @{githubUsername}
                 </Badge>
+                {/* Show Install App button if connected but no installation */}
+                {!hasInstallation && installUrl && (
+                  <>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => window.open(installUrl, '_blank')}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Install App
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSyncInstallation}
+                      title="Check if app is installed"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </Button>
+                  </>
+                )}
+                {hasInstallation && (
+                  <Badge variant="secondary" className="px-2 py-1 text-green-600">
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    App Installed
+                  </Badge>
+                )}
                 <Button 
                   variant="outline" 
                   size="sm"

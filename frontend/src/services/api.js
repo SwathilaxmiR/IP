@@ -110,12 +110,19 @@ export const api = {
     return response.data;
   },
 
-  handleGitHubCallback: async (code, state) => {
+  handleGitHubCallback: async (code, state, installation_id, setup_action) => {
+    // Build params object with only defined values
+    const params = {};
+    if (code) params.code = code;
+    if (state) params.state = state;
+    if (installation_id) params.installation_id = installation_id;
+    if (setup_action) params.setup_action = setup_action;
+    
     const response = await axios.post(
       `${API}/github/callback`,
       null,
       { 
-        params: { code, state },
+        params,
         headers: getHeaders() 
       }
     );
@@ -124,6 +131,11 @@ export const api = {
 
   getGitHubConnectionStatus: async () => {
     const response = await axios.get(`${API}/github/status`, { headers: getHeaders() });
+    return response.data;
+  },
+
+  syncGitHubInstallation: async () => {
+    const response = await axios.post(`${API}/github/sync-installation`, null, { headers: getHeaders() });
     return response.data;
   },
 

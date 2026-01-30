@@ -7,8 +7,8 @@ import { api } from '../services/api';
 const GitHubCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState('processing'); // processing, success, error
-  const [message, setMessage] = useState('Connecting to GitHub...');
+  const [status, setStatus] = useState('installing'); // installing, processing, success, error
+  const [message, setMessage] = useState('Installing fixora26...');
   const [githubUsername, setGithubUsername] = useState('');
 
   useEffect(() => {
@@ -16,6 +16,8 @@ const GitHubCallback = () => {
       const code = searchParams.get('code');
       const state = searchParams.get('state');
       const error = searchParams.get('error');
+      const installation_id = searchParams.get('installation_id');
+      const setup_action = searchParams.get('setup_action');
 
       if (error) {
         setStatus('error');
@@ -24,7 +26,8 @@ const GitHubCallback = () => {
         return;
       }
 
-      if (!code || !state) {
+      // Need either code or installation_id
+      if (!code && !installation_id) {
         setStatus('error');
         setMessage('Invalid callback parameters');
         setTimeout(() => navigate('/repositories'), 3000);
@@ -32,13 +35,24 @@ const GitHubCallback = () => {
       }
 
       try {
-        const result = await api.handleGitHubCallback(code, state);
+        // Show installing state
+        setStatus('installing');
+        setMessage('Installing fixora26...');
+        
+        // Small delay to show the installing message
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Process the callback
+        setStatus('processing');
+        setMessage('Authorizing with GitHub...');
+        
+        const result = await api.handleGitHubCallback(code, state, installation_id, setup_action);
         
         if (result.success) {
-          setStatus('success');
           setGithubUsername(result.github_username);
-          setMessage(`Successfully connected as ${result.github_username}`);
-          setTimeout(() => navigate('/repositories?github_connected=true'), 2000);
+          setStatus('success');
+          setMessage(`Connected as @${result.github_username}`);
+          setTimeout(() => navigate('/repositories?github_connected=true'), 1500);
         } else {
           setStatus('error');
           setMessage(result.message || 'Failed to connect GitHub');
@@ -67,6 +81,19 @@ const GitHubCallback = () => {
             <Github className="w-8 h-8 text-foreground" />
           </div>
           
+          {status === 'installing' && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <Loader2 className="w-8 h-8 mx-auto text-blue-500 animate-spin mb-4" />
+              <h2 className="text-xl font-semibold text-foreground mb-2">
+                Installing fixora26
+              </h2>
+              <p className="text-muted-foreground">Setting up GitHub App...</p>
+            </motion.div>
+          )}
+
           {status === 'processing' && (
             <motion.div
               initial={{ opacity: 0 }}
