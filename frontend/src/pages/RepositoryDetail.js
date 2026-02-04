@@ -205,9 +205,6 @@ const RepositoryDetail = () => {
   const [commits, setCommits] = useState([]);
   const [selectedCommit, setSelectedCommit] = useState('');
   
-  // Current scan ID for WebSocket matching
-  const [currentScanId, setCurrentScanId] = useState(null);
-  
   // State for file-based vulnerability viewer
   const [selectedFileVulns, setSelectedFileVulns] = useState(null);
   const [selectedFilePath, setSelectedFilePath] = useState('');

@@ -5,7 +5,6 @@ import { Toaster } from './components/ui/sonner';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import Repositories from './pages/Repositories';
 import RepositoryDetail from './pages/RepositoryDetail';
@@ -45,7 +44,6 @@ function App() {
           <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-          <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
 
           <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="/repositories" element={<PrivateRoute><Repositories /></PrivateRoute>} />

@@ -20,6 +20,7 @@ const Particles = ({ className = '', quantity = 50, staticity = 50, ease = 50 })
         return () => {
             window.removeEventListener('resize', initCanvas);
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const initCanvas = () => {

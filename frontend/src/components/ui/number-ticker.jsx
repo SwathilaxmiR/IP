@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { motion, useSpring, useTransform } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
+import { motion, useSpring } from 'framer-motion';
 
 const NumberTicker = ({ value, duration = 2, className = '' }) => {
     const [displayValue, setDisplayValue] = useState(0);
