@@ -152,7 +152,7 @@ export const api = {
   connectGitHubRepos: async (repoIds) => {
     const response = await axios.post(
       `${API}/github/repos/connect`,
-      repoIds,
+      { repo_ids: repoIds },
       { headers: getHeaders() }
     );
     return response.data;
@@ -161,7 +161,7 @@ export const api = {
   disconnectGitHubRepos: async (repoIds) => {
     const response = await axios.post(
       `${API}/github/repos/disconnect`,
-      repoIds,
+      { repo_ids: repoIds },
       { headers: getHeaders() }
     );
     return response.data;
