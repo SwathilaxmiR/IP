@@ -304,17 +304,46 @@ const RepositoryDetail = () => {
         
         if (data.type === 'pong' || data.type === 'connected') return;
         
+        // Wrapper Hunter completed
+        if (data.type === 'wrapper_hunter_complete') {
+          console.log('Wrapper hunter completed:', data.message);
+          setScanProgress(30);
+          setScanStage('Wrapper analysis done');
+        }
+        
+        // LLM analysis started
+        if (data.type === 'llm_analysis_started') {
+          console.log('LLM analysis started:', data.message);
+          setScanProgress(35);
+          setScanStage('AI analyzing wrappers...');
+        }
+        
+        // LLM analysis completed
+        if (data.type === 'llm_analysis_complete') {
+          console.log('LLM analysis complete:', data.message);
+          setScanProgress(45);
+          setScanStage(`AI found ${data.custom_rules_count || 0} custom rule(s)`);
+        }
+        
+        // Semgrep scan started
+        if (data.type === 'semgrep_started') {
+          console.log('Semgrep scan started:', data.message);
+          setScanProgress(55);
+          setScanStage('Semgrep scanning...');
+        }
+        
+        // Scan complete (final)
         if (data.type === 'scan_complete') {
           const notification = data.notification;
           
           // Check if this notification is for our current scan
           if (notification.data?.repository_id === id || notification.data?.scan_id === scanId) {
-            setScanProgress(75);
+            setScanProgress(85);
             setScanStage('Results received');
             
             setTimeout(() => {
               setScanProgress(100);
-              setScanStage('Workflow completed');
+              setScanStage('Scan completed!');
             }, 500);
             
             setTimeout(() => {
@@ -413,8 +442,8 @@ const RepositoryDetail = () => {
   const executeScan = async (mode) => {
     setShowScanDialog(false);
     setScanning(true);
-    setScanProgress(25);
-    setScanStage('Starting scan...');
+    setScanProgress(10);
+    setScanStage('Starting wrapper hunter...');
     
     try {
       const baseCommit = mode === 'diff' && selectedCommit ? selectedCommit : null;
@@ -422,9 +451,9 @@ const RepositoryDetail = () => {
       const result = await api.startGitHubScan(id, mode, selectedBranch, baseCommit);
       
       if (result.success) {
-        toast.success('Scan started successfully!');
-        setScanProgress(50);
-        setScanStage('Workflow created');
+        toast.success('Scan pipeline started!');
+        setScanProgress(15);
+        setScanStage('Wrapper hunter running...');
         
         // Connect WebSocket immediately for this scan
         connectScanWebSocket(result.scan_id);
@@ -436,7 +465,7 @@ const RepositoryDetail = () => {
           scan_mode: mode,
           branch: selectedBranch,
           started_at: new Date().toISOString(),
-          progress: 50
+          progress: 15
         }, ...prev]);
       }
     } catch (error) {
@@ -570,23 +599,31 @@ const RepositoryDetail = () => {
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="grid grid-cols-4 gap-3 pt-2"
+                      className="grid grid-cols-3 md:grid-cols-6 gap-3 pt-2"
                     >
-                      <div className={`flex items-center gap-2 text-xs ${scanProgress >= 25 ? 'text-green-500 font-medium' : 'text-muted-foreground'}`}>
-                        {scanProgress >= 25 ? <CheckCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
-                        Starting scan
+                      <div className={`flex items-center gap-1.5 text-xs ${scanProgress >= 15 ? 'text-green-500 font-medium' : 'text-muted-foreground'}`}>
+                        {scanProgress >= 15 ? <CheckCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                        Wrapper Hunter
                       </div>
-                      <div className={`flex items-center gap-2 text-xs ${scanProgress >= 50 ? 'text-green-500 font-medium' : scanProgress >= 25 ? 'text-primary' : 'text-muted-foreground'}`}>
-                        {scanProgress >= 50 ? <CheckCircle className="w-4 h-4" /> : scanProgress >= 25 ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
-                        Workflow created
+                      <div className={`flex items-center gap-1.5 text-xs ${scanProgress >= 30 ? 'text-green-500 font-medium' : scanProgress >= 15 ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {scanProgress >= 30 ? <CheckCircle className="w-3.5 h-3.5" /> : scanProgress >= 15 ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clock className="w-3.5 h-3.5" />}
+                        Wrappers Found
                       </div>
-                      <div className={`flex items-center gap-2 text-xs ${scanProgress >= 75 ? 'text-green-500 font-medium' : scanProgress >= 50 ? 'text-primary' : 'text-muted-foreground'}`}>
-                        {scanProgress >= 75 ? <CheckCircle className="w-4 h-4" /> : scanProgress >= 50 ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
-                        Results received
+                      <div className={`flex items-center gap-1.5 text-xs ${scanProgress >= 45 ? 'text-green-500 font-medium' : scanProgress >= 30 ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {scanProgress >= 45 ? <CheckCircle className="w-3.5 h-3.5" /> : scanProgress >= 30 ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clock className="w-3.5 h-3.5" />}
+                        AI Analysis
                       </div>
-                      <div className={`flex items-center gap-2 text-xs ${scanProgress >= 100 ? 'text-green-500 font-medium' : scanProgress >= 75 ? 'text-primary' : 'text-muted-foreground'}`}>
-                        {scanProgress >= 100 ? <CheckCircle className="w-4 h-4" /> : scanProgress >= 75 ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
-                        Workflow completed
+                      <div className={`flex items-center gap-1.5 text-xs ${scanProgress >= 55 ? 'text-green-500 font-medium' : scanProgress >= 45 ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {scanProgress >= 55 ? <CheckCircle className="w-3.5 h-3.5" /> : scanProgress >= 45 ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clock className="w-3.5 h-3.5" />}
+                        Semgrep Scan
+                      </div>
+                      <div className={`flex items-center gap-1.5 text-xs ${scanProgress >= 85 ? 'text-green-500 font-medium' : scanProgress >= 55 ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {scanProgress >= 85 ? <CheckCircle className="w-3.5 h-3.5" /> : scanProgress >= 55 ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clock className="w-3.5 h-3.5" />}
+                        Results
+                      </div>
+                      <div className={`flex items-center gap-1.5 text-xs ${scanProgress >= 100 ? 'text-green-500 font-medium' : scanProgress >= 85 ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {scanProgress >= 100 ? <CheckCircle className="w-3.5 h-3.5" /> : scanProgress >= 85 ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clock className="w-3.5 h-3.5" />}
+                        Complete
                       </div>
                     </motion.div>
                   </div>

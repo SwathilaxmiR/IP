@@ -1,4 +1,4 @@
-# HuggingFace LLM Service - Wrapper Hunter Analysis
+# LLM Service - Wrapper Hunter Analysis
 # Receives wrapper_hunter_results.json, returns sink_modules.json
 import logging
 import json
@@ -159,7 +159,7 @@ def build_wrapper_analysis_prompt(wrapper_data: Dict[str, Any]) -> str:
 
 async def analyze_wrappers_with_llm(wrapper_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Send wrapper_hunter_results.json to HuggingFace LLM.
+    Send wrapper_hunter_results.json to Groq LLM.
     Returns sink_modules.json  (same structure, but only vulnerable items).
     Uses AsyncOpenAI so the event loop is never blocked.
     """
@@ -235,7 +235,7 @@ async def analyze_wrappers_with_llm(wrapper_data: Dict[str, Any]) -> Dict[str, A
         return result
 
     except Exception as exc:
-        logger.error(f"Error calling HuggingFace LLM: {exc}")
+        logger.error(f"Error calling Groq LLM: {exc}")
         return _empty_result(wrapper_data, error=str(exc))
 
 

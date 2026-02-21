@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Key, Github, Save } from 'lucide-react';
+import { Github, Save } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -9,12 +9,7 @@ import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 
 const Settings = () => {
-  const [hfToken, setHfToken] = useState('');
   const [githubToken, setGithubToken] = useState('');
-
-  const handleSaveHFToken = () => {
-    toast.info('HuggingFace token will be configured on backend');
-  };
 
   const handleSaveGithubToken = () => {
     toast.info('GitHub token will be configured on backend');
@@ -31,52 +26,6 @@ const Settings = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Card className="glass-card">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Key className="w-5 h-5 text-primary" />
-                  <CardTitle>HuggingFace API Token</CardTitle>
-                </div>
-                <CardDescription>
-                  Configure your HuggingFace token for AI-powered vulnerability detection
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="hf-token">API Token</Label>
-                  <Input
-                    id="hf-token"
-                    type="password"
-                    placeholder="hf_xxxxxxxxxxxxxxxxxxxxx"
-                    value={hfToken}
-                    onChange={(e) => setHfToken(e.target.value)}
-                    data-testid="hf-token-input"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Get your token from{' '}
-                    <a
-                      href="https://huggingface.co/settings/tokens"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      HuggingFace Settings
-                    </a>
-                  </p>
-                </div>
-                <Button onClick={handleSaveHFToken} className="w-full" data-testid="save-hf-token-btn">
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Token
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
-
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -134,15 +83,7 @@ const Settings = () => {
           <CardContent>
             <div className="space-y-4 text-sm">
               <div>
-                <h4 className="font-semibold mb-2">1. HuggingFace Token Setup</h4>
-                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                  <li>Go to HuggingFace Settings → Access Tokens</li>
-                  <li>Create a new token with "Inference Providers" permission</li>
-                  <li>Copy and paste the token above</li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-semibold mb-2">2. GitHub Token Setup</h4>
+                <h4 className="font-semibold mb-2">1. GitHub Token Setup</h4>
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li>Go to GitHub Settings → Developer settings → Personal access tokens</li>
                   <li>Generate new token (classic)</li>
@@ -151,7 +92,7 @@ const Settings = () => {
                 </ul>
               </div>
               <div>
-                <h4 className="font-semibold mb-2">3. Connect Repositories</h4>
+                <h4 className="font-semibold mb-2">2. Connect Repositories</h4>
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li>Go to Repositories page</li>
                   <li>Click "Connect Repository"</li>
