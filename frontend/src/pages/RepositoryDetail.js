@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, GitBranch, FileCode, AlertTriangle, 
   Folder, ChevronRight, ChevronDown,
-  Loader2, CheckCircle, Clock, Shield, GitCommit, Scan, Bug
+  Loader2, CheckCircle, Clock, Shield, GitCommit, Scan, Bug,
+  Terminal, Cpu, Zap, Database, Code2, Bot, RefreshCw, Copy, Check
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -186,7 +187,6 @@ const RepositoryDetail = () => {
   const { id } = useParams();
   const [repo, setRepo] = useState(null);
   const [vulnerabilities, setVulnerabilities] = useState([]);
-  const [patterns, setPatterns] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // Branch & File Tree state
@@ -209,7 +209,42 @@ const RepositoryDetail = () => {
   // State for file-based vulnerability viewer
   const [selectedFileVulns, setSelectedFileVulns] = useState(null);
   const [selectedFilePath, setSelectedFilePath] = useState('');
+
+  // Debug / AI analysis state
+  const [scanDebug, setScanDebug] = useState(null);
+  const [loadingDebug, setLoadingDebug] = useState(false);
+  const [debugError, setDebugError] = useState(null);
+  const [copiedSection, setCopiedSection] = useState(null);
+  const [debugInnerTab, setDebugInnerTab] = useState('wrapper');
   
+  const fetchScanDebug = useCallback(async () => {
+    if (!id) return;
+    setLoadingDebug(true);
+    setDebugError(null);
+    try {
+      const data = await api.getScanDebug(id);
+      setScanDebug(data);
+    } catch (err) {
+      setDebugError(err?.response?.data?.detail || 'No scan debug data available yet. Run a scan first.');
+      setScanDebug(null);
+    } finally {
+      setLoadingDebug(false);
+    }
+  }, [id]);
+
+  const copyToClipboard = useCallback((text, section) => {
+    navigator.clipboard.writeText(text || '').then(() => {
+      setCopiedSection(section);
+      setTimeout(() => setCopiedSection(null), 2000);
+    });
+  }, []);
+
+  const handleTabChange = useCallback((value) => {
+    if (value === 'ai-patterns') {
+      fetchScanDebug();
+    }
+  }, [fetchScanDebug]);
+
   // Group vulnerabilities by file path
   const vulnerabilitiesByFile = useMemo(() => {
     const grouped = {};
@@ -232,17 +267,15 @@ const RepositoryDetail = () => {
   // Define fetchData first so it can be referenced by handleWebSocketMessage
   const fetchData = useCallback(async (restoreRunningScan = false) => {
     try {
-      const [repoData, vulnData, patternData, branchData, scanData] = await Promise.all([
+      const [repoData, vulnData, branchData, scanData] = await Promise.all([
         api.getRepository(id),
         api.getVulnerabilities({ repository_id: id }),
-        api.getAIPatterns(id),
         api.getRepoBranches(id).catch(() => ({ branches: [], default_branch: 'main' })),
         api.getRepoScans(id).catch(() => [])
       ]);
       
       setRepo(repoData);
       setVulnerabilities(vulnData);
-      setPatterns(patternData);
       setBranches(branchData.branches || []);
       setDefaultBranch(branchData.default_branch || 'main');
       setSelectedBranch(branchData.default_branch || 'main');
@@ -677,14 +710,14 @@ const RepositoryDetail = () => {
           </Card>
           <Card data-testid="patterns-stat">
             <CardContent className="pt-6">
-              <div className="text-sm text-muted-foreground mb-2">AI Patterns</div>
-              <div className="text-3xl font-bold text-primary">{patterns.length}</div>
+              <div className="text-sm text-muted-foreground mb-2">AI Debug Runs</div>
+              <div className="text-3xl font-bold text-primary">{scanDebug ? (scanDebug.vuln_wrapper_count ?? 0) : '—'}</div>
             </CardContent>
           </Card>
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="files" className="space-y-6">
+        <Tabs defaultValue="files" className="space-y-6" onValueChange={handleTabChange}>
           <TabsList className="grid w-full md:w-auto md:inline-grid grid-cols-4 gap-4">
             <TabsTrigger value="files" data-testid="tab-files">
               <Folder className="w-4 h-4 mr-2" />
@@ -699,8 +732,8 @@ const RepositoryDetail = () => {
               Scan History
             </TabsTrigger>
             <TabsTrigger value="ai-patterns" data-testid="tab-patterns">
-              <FileCode className="w-4 h-4 mr-2" />
-              AI Patterns
+              <Bot className="w-4 h-4 mr-2" />
+              AI Debug
             </TabsTrigger>
           </TabsList>
 
@@ -880,36 +913,313 @@ const RepositoryDetail = () => {
             )}
           </TabsContent>
 
-          {/* AI Patterns Tab */}
+          {/* AI Debug Tab */}
           <TabsContent value="ai-patterns">
-            {patterns.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <FileCode className="w-16 h-16 mx-auto mb-4 opacity-50 text-muted-foreground" />
-                  <p className="text-lg text-muted-foreground">No AI patterns discovered yet</p>
-                  <p className="text-sm text-muted-foreground mt-2">Run a scan to discover patterns</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {patterns.map((pattern) => (
-                  <Card key={pattern.id}>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg">{pattern.pattern_name}</CardTitle>
-                        <Badge variant="outline">{pattern.pattern_type}</Badge>
-                      </div>
-                      <CardDescription>{pattern.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground">
-                        Confidence: {(pattern.confidence * 100).toFixed(0)}%
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
+            <div className="space-y-4">
+              {/* Header row */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold flex items-center gap-2">
+                    <Bot className="w-5 h-5 text-primary" />
+                    AI Pipeline Debug
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Full trace of Wrapper Hunter → Groq LLM → Semgrep rules for the latest scan
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchScanDebug} disabled={loadingDebug}>
+                  {loadingDebug ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  <span className="ml-2">Refresh</span>
+                </Button>
               </div>
-            )}
+
+              {/* Loading */}
+              {loadingDebug && (
+                <Card>
+                  <CardContent className="py-16 flex flex-col items-center gap-3">
+                    <Loader2 className="w-10 h-10 animate-spin text-primary" />
+                    <p className="text-muted-foreground">Loading scan debug data…</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Error / no data */}
+              {!loadingDebug && debugError && (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Bot className="w-14 h-14 mx-auto mb-4 opacity-40 text-muted-foreground" />
+                    <p className="text-muted-foreground">{debugError}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Data loaded */}
+              {!loadingDebug && scanDebug && (() => {
+                const wd   = scanDebug.wrapper_hunter_results;
+                const llmR = scanDebug.llm_result;
+                const yaml = scanDebug.custom_rules_yaml;
+                const prompt = scanDebug.llm_prompt;
+
+                const severityColor = (s) => ({
+                  HIGH:     'bg-red-500/15 text-red-400 border-red-500/30',
+                  CRITICAL: 'bg-red-600/20 text-red-300 border-red-600/30',
+                  MEDIUM:   'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+                  LOW:      'bg-blue-500/15 text-blue-400 border-blue-500/30',
+                })[s?.toUpperCase()] || 'bg-muted text-muted-foreground';
+
+                return (
+                  <div className="space-y-6">
+
+                    {/* Scan meta */}
+                    <Card className="border-border/50">
+                      <CardContent className="pt-4 pb-3 flex flex-wrap gap-4 text-sm">
+                        <span className="flex items-center gap-1.5 text-muted-foreground"><Clock className="w-3.5 h-3.5" /> Scan ID: <code className="text-foreground font-mono text-xs">{scanDebug.scan_id}</code></span>
+                        <span className="flex items-center gap-1.5 text-muted-foreground">Status: <Badge variant={scanDebug.status === 'completed' ? 'default' : 'secondary'}>{scanDebug.status}</Badge></span>
+                        <span className="flex items-center gap-1.5 text-muted-foreground">Phase: <code className="text-foreground text-xs">{scanDebug.phase}</code></span>
+                        {scanDebug.completed_at && <span className="flex items-center gap-1.5 text-muted-foreground">Completed: {new Date(scanDebug.completed_at).toLocaleString()}</span>}
+                      </CardContent>
+                    </Card>
+
+                    {/* Inner navigation */}
+                    <div className="flex gap-2 flex-wrap">
+                      {[
+                        { key: 'wrapper', label: 'Wrapper Hunter', icon: Terminal },
+                        { key: 'prompt',  label: 'LLM Prompt',     icon: Code2 },
+                        { key: 'llm',     label: 'LLM Result',     icon: Cpu },
+                        { key: 'rules',   label: 'Semgrep Rules',  icon: Zap },
+                      ].map(({ key, label, icon: Icon }) => (
+                        <button
+                          key={key}
+                          onClick={() => setDebugInnerTab(key)}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                            debugInnerTab === key
+                              ? 'bg-primary text-primary-foreground border-primary'
+                              : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />{label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* ───── WRAPPER HUNTER ───── */}
+                    {debugInnerTab === 'wrapper' && (
+                      <div className="space-y-4">
+                        {!wd ? (
+                          <Card><CardContent className="py-10 text-center text-muted-foreground">No wrapper hunter data in this scan yet.</CardContent></Card>
+                        ) : (
+                          Object.entries(wd.results || {}).map(([lang, section]) => (
+                            <div key={lang} className="space-y-3">
+                              <h3 className="font-semibold text-base flex items-center gap-2">
+                                <Terminal className="w-4 h-4 text-primary" />
+                                {lang === 'python' ? '🐍 Python' : '⚛️ React / JS'} — {wd.language}
+                              </h3>
+
+                              {/* Modules */}
+                              <Card className="border-border/60">
+                                <CardHeader className="pb-2 pt-4">
+                                  <CardTitle className="text-sm flex items-center gap-2"><Database className="w-3.5 h-3.5" /> Modules Discovered</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div>
+                                    <p className="text-xs text-muted-foreground font-medium mb-1">From manifest ({(section.modules?.from_manifest || []).length})</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {(section.modules?.from_manifest || []).map(m => <span key={m} className="px-2 py-0.5 bg-muted rounded text-xs font-mono">{m}</span>)}
+                                      {!section.modules?.from_manifest?.length && <span className="text-xs text-muted-foreground italic">none</span>}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-muted-foreground font-medium mb-1">From imports ({(section.modules?.from_imports || []).length})</p>
+                                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                                      {(section.modules?.from_imports || []).map(m => <span key={m} className="px-2 py-0.5 bg-muted rounded text-xs font-mono">{m}</span>)}
+                                      {!section.modules?.from_imports?.length && <span className="text-xs text-muted-foreground italic">none</span>}
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+
+                              {/* Wrapper functions */}
+                              <Card className="border-border/60">
+                                <CardHeader className="pb-2 pt-4">
+                                  <CardTitle className="text-sm">Wrapper Functions Found ({(section.wrapper_functions || []).length})</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  {!(section.wrapper_functions || []).length ? (
+                                    <p className="text-sm text-muted-foreground italic">No wrapper functions found.</p>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {section.wrapper_functions.map((fn, i) => (
+                                        <div key={i} className="border border-border/50 rounded-lg p-3 space-y-2">
+                                          <div className="flex items-center justify-between flex-wrap gap-2">
+                                            <code className="font-mono font-semibold text-sm text-foreground">{fn.function_name}()</code>
+                                            <span className="text-xs text-muted-foreground font-mono">{fn.file} L{fn.line_start}–{fn.line_end}</span>
+                                          </div>
+                                          <div className="flex flex-wrap gap-1.5">
+                                            {(fn.calls || []).map(c => <span key={c} className="px-1.5 py-0.5 bg-orange-500/15 border border-orange-500/25 text-orange-400 rounded text-xs font-mono">{c}</span>)}
+                                          </div>
+                                          {fn.source_code && (
+                                            <pre className="text-xs font-mono bg-muted/60 rounded p-3 overflow-x-auto max-h-48 whitespace-pre-wrap border border-border/40">{fn.source_code}</pre>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    {/* ───── LLM PROMPT ───── */}
+                    {debugInnerTab === 'prompt' && (
+                      <Card className="border-border/60">
+                        <CardHeader className="pb-2 pt-4 flex flex-row items-center justify-between">
+                          <CardTitle className="text-sm flex items-center gap-2"><Code2 className="w-3.5 h-3.5" /> Exact Prompt Sent to Groq LLM</CardTitle>
+                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(prompt, 'prompt')}>
+                            {copiedSection === 'prompt' ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span className="ml-1.5 text-xs">{copiedSection === 'prompt' ? 'Copied!' : 'Copy'}</span>
+                          </Button>
+                        </CardHeader>
+                        <CardContent>
+                          {!prompt ? (
+                            <p className="text-sm text-muted-foreground italic">No prompt data available — wrapper hunter hasn't run yet.</p>
+                          ) : (
+                            <ScrollArea className="h-[600px]">
+                              <pre className="text-xs font-mono bg-muted/60 rounded p-4 whitespace-pre-wrap border border-border/40 leading-relaxed">{prompt}</pre>
+                            </ScrollArea>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* ───── LLM RESULT ───── */}
+                    {debugInnerTab === 'llm' && (
+                      <div className="space-y-4">
+                        {!llmR ? (
+                          <Card><CardContent className="py-10 text-center text-muted-foreground">No LLM result yet — AI analysis hasn't run.</CardContent></Card>
+                        ) : (
+                          <>
+                            {/* Summary banner */}
+                            <Card className="border-primary/30 bg-primary/5">
+                              <CardContent className="py-3 flex items-center gap-3">
+                                <Cpu className="w-5 h-5 text-primary" />
+                                <div>
+                                  <p className="text-sm font-medium">{llmR.analysis_summary}</p>
+                                  <p className="text-xs text-muted-foreground">Language: {llmR.language}</p>
+                                </div>
+                                {llmR.error && <Badge variant="destructive" className="ml-auto">Error</Badge>}
+                              </CardContent>
+                            </Card>
+
+                            {Object.entries(llmR.results || {}).map(([lang, section]) => (
+                              <div key={lang} className="space-y-3">
+                                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">{lang}</h3>
+
+                                {/* Sink modules */}
+                                <Card className="border-border/60">
+                                  <CardHeader className="pb-2 pt-4">
+                                    <CardTitle className="text-sm flex items-center gap-2"><Database className="w-3.5 h-3.5 text-red-400" /> Sink Modules Identified</CardTitle>
+                                    {section.modules?.reason && <CardDescription className="text-xs">{section.modules.reason}</CardDescription>}
+                                  </CardHeader>
+                                  <CardContent>
+                                    <div className="flex flex-wrap gap-2">
+                                      {(section.modules?.sink_modules || []).map(m => (
+                                        <span key={m} className="px-2.5 py-1 bg-red-500/15 border border-red-500/25 text-red-400 rounded-full text-xs font-mono font-semibold">{m}</span>
+                                      ))}
+                                      {!section.modules?.sink_modules?.length && <span className="text-xs text-muted-foreground italic">No dangerous sink modules found.</span>}
+                                    </div>
+                                  </CardContent>
+                                </Card>
+
+                                {/* Vulnerable wrappers */}
+                                <Card className="border-border/60">
+                                  <CardHeader className="pb-2 pt-4">
+                                    <CardTitle className="text-sm">Vulnerable Wrapper Functions ({(section.wrapper_functions || []).length})</CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                    {!(section.wrapper_functions || []).length ? (
+                                      <p className="text-sm text-muted-foreground italic">No vulnerable wrappers found — all functions are safe or no data.</p>
+                                    ) : (
+                                      <div className="space-y-3">
+                                        {section.wrapper_functions.map((fn, i) => (
+                                          <div key={i} className="border border-border/50 rounded-lg p-4 space-y-2">
+                                            <div className="flex items-start justify-between gap-3 flex-wrap">
+                                              <div>
+                                                <code className="font-mono font-semibold text-sm">{fn.function_name}()</code>
+                                                <span className="ml-2 text-xs text-muted-foreground font-mono">{fn.file}</span>
+                                              </div>
+                                              <div className="flex gap-2">
+                                                <span className={`px-2 py-0.5 rounded border text-xs font-semibold ${severityColor(fn.severity)}`}>{fn.severity}</span>
+                                                <span className="px-2 py-0.5 rounded bg-muted border border-border text-xs">{fn.vulnerability_type}</span>
+                                              </div>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground leading-relaxed">{fn.reason}</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                              {(fn.calls || []).map(c => <span key={c} className="px-1.5 py-0.5 bg-orange-500/15 border border-orange-500/25 text-orange-400 rounded text-xs font-mono">{c}</span>)}
+                                            </div>
+                                            {fn.source_code && (
+                                              <pre className="text-xs font-mono bg-muted/60 rounded p-3 overflow-x-auto max-h-48 whitespace-pre-wrap border border-border/40">{fn.source_code}</pre>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              </div>
+                            ))}
+
+                            {/* Raw JSON toggle */}
+                            <Card className="border-border/60">
+                              <CardHeader className="pb-2 pt-4 flex flex-row items-center justify-between">
+                                <CardTitle className="text-sm">Raw LLM JSON (sink_modules.json)</CardTitle>
+                                <Button variant="ghost" size="sm" onClick={() => copyToClipboard(JSON.stringify(llmR, null, 2), 'llm')}>
+                                  {copiedSection === 'llm' ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                  <span className="ml-1.5 text-xs">{copiedSection === 'llm' ? 'Copied!' : 'Copy'}</span>
+                                </Button>
+                              </CardHeader>
+                              <CardContent>
+                                <ScrollArea className="h-64">
+                                  <pre className="text-xs font-mono bg-muted/60 rounded p-3 whitespace-pre-wrap border border-border/40">{JSON.stringify(llmR, null, 2)}</pre>
+                                </ScrollArea>
+                              </CardContent>
+                            </Card>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ───── SEMGREP RULES ───── */}
+                    {debugInnerTab === 'rules' && (
+                      <Card className="border-border/60">
+                        <CardHeader className="pb-2 pt-4 flex flex-row items-center justify-between">
+                          <div>
+                            <CardTitle className="text-sm flex items-center gap-2"><Zap className="w-3.5 h-3.5 text-yellow-400" /> Generated Semgrep Rules (.fixora-rules.yml)</CardTitle>
+                            <CardDescription className="text-xs mt-1">These were pushed to the repo alongside Semgrep's built-in --config auto rules</CardDescription>
+                          </div>
+                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(yaml, 'rules')} disabled={!yaml}>
+                            {copiedSection === 'rules' ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span className="ml-1.5 text-xs">{copiedSection === 'rules' ? 'Copied!' : 'Copy'}</span>
+                          </Button>
+                        </CardHeader>
+                        <CardContent>
+                          {!yaml ? (
+                            <p className="text-sm text-muted-foreground italic">No custom rules were generated — either no vulnerable wrappers found or scan hasn't run yet.</p>
+                          ) : (
+                            <ScrollArea className="h-[600px]">
+                              <pre className="text-xs font-mono bg-muted/60 rounded p-4 whitespace-pre-wrap border border-border/40 leading-relaxed">{yaml}</pre>
+                            </ScrollArea>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                  </div>
+                );
+              })()}
+            </div>
           </TabsContent>
         </Tabs>
       </div>

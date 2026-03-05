@@ -47,48 +47,10 @@ export const api = {
     return response.data;
   },
   
-  getVulnerability: async (id) => {
-    const response = await axios.get(`${API}/vulnerabilities/${id}`, { headers: getHeaders() });
-    return response.data;
-  },
-  
-  updateVulnerabilityStatus: async (id, status) => {
-    const response = await axios.patch(
-      `${API}/vulnerabilities/${id}/status?new_status=${status}`,
-      {},
-      { headers: getHeaders() }
-    );
-    return response.data;
-  },
-  
-  // Scans
-  startScan: async (repositoryId, scanType = 'full') => {
-    const response = await axios.post(
-      `${API}/scan`,
-      { repository_id: repositoryId, scan_type: scanType },
-      { headers: getHeaders() }
-    );
-    return response.data;
-  },
-  
-  getScanStatus: async (scanId) => {
-    const response = await axios.get(`${API}/scan/${scanId}`, { headers: getHeaders() });
-    return response.data;
-  },
-  
-  // AI Patterns
-  getAIPatterns: async (repositoryId) => {
+  // AI Debug
+  getAIDebug: async (repositoryId) => {
     const params = repositoryId ? `?repository_id=${repositoryId}` : '';
-    const response = await axios.get(`${API}/ai-patterns${params}`, { headers: getHeaders() });
-    return response.data;
-  },
-  
-  verifyAIPattern: async (patternId, isCorrect) => {
-    const response = await axios.patch(
-      `${API}/ai-patterns/${patternId}/verify?is_correct=${isCorrect}`,
-      {},
-      { headers: getHeaders() }
-    );
+    const response = await axios.get(`${API}/ai-debug${params}`, { headers: getHeaders() });
     return response.data;
   },
   
@@ -208,15 +170,6 @@ export const api = {
     return response.data;
   },
 
-  refreshRepoSecrets: async (repoId) => {
-    const response = await axios.post(
-      `${API}/github/repos/${repoId}/refresh-secrets`,
-      {},
-      { headers: getHeaders() }
-    );
-    return response.data;
-  },
-
   getRepoScans: async (repoId, limit = 10) => {
     const response = await axios.get(
       `${API}/github/repos/${repoId}/scans`,
@@ -225,22 +178,13 @@ export const api = {
     return response.data;
   },
 
-  // Notifications
-  getNotifications: async (unreadOnly = true, limit = 20) => {
+  getScanDebug: async (repoId) => {
     const response = await axios.get(
-      `${API}/scan/notifications`,
-      { params: { unread_only: unreadOnly, limit }, headers: getHeaders() }
+      `${API}/ai-debug/repo/${repoId}`,
+      { headers: getHeaders() }
     );
     return response.data;
   },
 
-  markNotificationRead: async (notificationId) => {
-    const response = await axios.post(
-      `${API}/scan/notifications/${notificationId}/read`,
-      {},
-      { headers: getHeaders() }
-    );
-    return response.data;
-  }
 };
 export default apiClient;
